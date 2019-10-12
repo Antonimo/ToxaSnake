@@ -257,10 +257,13 @@ class GameSprite extends Sprite {
 
 class SnakePart extends GameSprite {
   SnakeParts part;
+  Position coordinates;
 
   TileOrientation orientation;
 
-  SnakePart({this.part, this.orientation}) {
+  SnakePart({this.part, this.orientation, this.coordinates}) {
+    position = Offset(coordinates.x * SCREEN_TILE_SIZE, coordinates.y * SCREEN_TILE_SIZE);
+
     if (part == SnakeParts.HEAD) {
       if (orientation == TileOrientation.UP) {
         texture = _textures['headU'];
@@ -330,27 +333,10 @@ class Snake extends Node {
     this.rows,
   ) {
     // place initial parts
-    var part;
-
-    part = SnakePart(part: SnakeParts.TAIL, orientation: TileOrientation.RIGHT);
-    part.position = Offset((coordinates.x - 3) * SCREEN_TILE_SIZE, coordinates.y * SCREEN_TILE_SIZE);
-    parts.add(part);
-    addChild(part);
-
-    part = SnakePart(part: SnakeParts.BODY_LR, orientation: TileOrientation.RIGHT);
-    part.position = Offset((coordinates.x - 2) * SCREEN_TILE_SIZE, coordinates.y * SCREEN_TILE_SIZE);
-    parts.add(part);
-    addChild(part);
-
-    part = SnakePart(part: SnakeParts.BODY_LR, orientation: TileOrientation.RIGHT);
-    part.position = Offset((coordinates.x - 1) * SCREEN_TILE_SIZE, coordinates.y * SCREEN_TILE_SIZE);
-    parts.add(part);
-    addChild(part);
-
-    part = SnakePart(part: SnakeParts.HEAD, orientation: TileOrientation.RIGHT);
-    part.position = Offset(coordinates.x * SCREEN_TILE_SIZE, coordinates.y * SCREEN_TILE_SIZE);
-    parts.add(part);
-    addChild(part);
+    addPart(SnakeParts.TAIL, TileOrientation.RIGHT, coordinates.x - 3, coordinates.y);
+    addPart(SnakeParts.BODY_LR, TileOrientation.RIGHT, coordinates.x - 2, coordinates.y);
+    addPart(SnakeParts.BODY_LR, TileOrientation.RIGHT, coordinates.x - 1, coordinates.y);
+    addPart(SnakeParts.HEAD, TileOrientation.RIGHT, coordinates.x, coordinates.y);
   }
 
   void move(int dx, int dy) {
@@ -361,7 +347,7 @@ class Snake extends Node {
     coordinates.dy = dy;
   }
 
-  void step() {
+  bool step() {
     coordinates.x += coordinates.dx;
     coordinates.y += coordinates.dy;
     if (coordinates.x >= columns) {
@@ -375,6 +361,10 @@ class Snake extends Node {
     }
     if (coordinates.y < 0) {
       coordinates.y = rows - 1;
+    }
+
+    if (!checkCollision()) {
+      return false;
     }
 
     var orientation = TileOrientation.UP;
@@ -431,24 +421,19 @@ class Snake extends Node {
       removePart(parts.first);
     }
     replacePart(parts.first, SnakeParts.TAIL, parts.first.orientation);
+
+    return true;
   }
 
   void addPart(SnakeParts snakePart, TileOrientation orientation, int x, int y) {
-    var part = SnakePart(part: snakePart, orientation: orientation);
-    part.position = Offset(x * SCREEN_TILE_SIZE, y * SCREEN_TILE_SIZE);
+    var part = SnakePart(part: snakePart, orientation: orientation, coordinates: Position(x, y));
     parts.add(part);
     addChild(part);
   }
 
   void replacePart(SnakePart oldPart, SnakeParts snakePart, TileOrientation orientation) {
-    var index = parts.indexOf(oldPart);
-
-    var part = SnakePart(part: snakePart, orientation: orientation);
-    part.position = oldPart.position;
-
-//    parts.replaceRange(index - 1, index, [part]);
-    parts[index] = part;
-
+    var part = SnakePart(part: snakePart, orientation: orientation, coordinates: oldPart.coordinates);
+    parts[parts.indexOf(oldPart)] = part;
     removeChild(oldPart);
     addChild(part);
   }
@@ -460,6 +445,18 @@ class Snake extends Node {
 
   void grow() {
     growSize++;
+  }
+
+  bool checkCollision() {
+    for (var part in parts) {
+      if (part == parts.last) {
+        return true;
+      }
+      if (part.coordinates.x == coordinates.x && part.coordinates.y == coordinates.y) {
+        return false;
+      }
+    }
+    return true;
   }
 }
 
@@ -487,13 +484,7 @@ class SnakeGame extends NodeWithSize {
 
     print('${SizeConfig.safeAreaWidth} ${SizeConfig.safeAreaHeight} > $columns  $rows');
 
-    snake = Snake(
-      Position((columns / 2).floor(), (rows / 2).floor()),
-      columns,
-      rows,
-    );
-
-    putFood();
+    resetGame();
 //
 //    var sprite = Sprite(_textures['bodyDR']);
 //
@@ -515,13 +506,14 @@ class SnakeGame extends NodeWithSize {
 //      }
 //    }
 
-    addChild(snake);
 
     // runs every 1 second
     Timer.periodic(new Duration(milliseconds: 190), (timer) {
       debugPrint(timer.tick.toString());
 
-      snake.step();
+      if (!snake.step()) {
+        resetGame();
+      }
       if (snake.coordinates.x == food.coordinates.x && snake.coordinates.y == food.coordinates.y) {
         snake.grow();
         putFood();
@@ -545,6 +537,20 @@ class SnakeGame extends NodeWithSize {
 //  void update(double dt) {
 ////    print('update: $dt');
 //  }
+
+  void resetGame(){
+    removeAllChildren();
+
+    snake = Snake(
+      Position((columns / 2).floor(), (rows / 2).floor()),
+      columns,
+      rows,
+    );
+
+    addChild(snake);
+
+    putFood();
+  }
 }
 
 /*
